@@ -1,0 +1,85 @@
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
+from openpyxl import Workbook
+from datetime import datetime
+
+def wait_for_content(driver, element):
+    # Wait for the JavaScript to fill in elements
+    wait = WebDriverWait(driver, 10)  # Maximum wait time of 10 seconds
+    element_locator = (By.XPATH, element)
+    wait.until(EC.presence_of_element_located(element_locator))
+
+def fill_input_initial(driver, tracker):
+    wait_for_content(driver, "//input[@name='srchBkgNo1']")
+    input_box = driver.find_element(By.XPATH, "//input[@name='srchBkgNo1']")
+    input_box.send_keys(tracker)
+    input_box.send_keys(Keys.ENTER)
+    
+    wait_for_content(driver, "//button[normalize-space()='Retrieve']")
+    retrieve_button = driver.find_element(By.XPATH, "//button[normalize-space()='Retrieve']")
+    retrieve_button.click()
+
+def fill_input_sub(driver, tracker):
+    wait_for_content(driver, "//input[@name='srchBkgNo1']")
+    input_box = driver.find_element(By.XPATH, "//input[@id='esvcGlobalQuery']")
+    input_box.send_keys(tracker)
+    input_box.send_keys(Keys.ENTER)
+    
+def retrieve_date_info(driver):
+    try:
+        wait_for_content(driver, "//div[@id='cntrChangeArea']//table//tbody/tr[3]/td[5]")
+        
+        date_element = driver.find_element(By.XPATH, "//div[@id='cntrChangeArea']//table//tbody/tr[3]/td[5]")
+        return date_element.text
+    except Exception as e:
+        print(f"Could not find date on page. Message {e}")
+        return 'N/A'
+    
+def format_date(date):
+    # Parse the input string into a datetime object
+    date_object = datetime.strptime(date, "%Y-%m-%d")
+
+    # Format the date as "month/day"
+    formatted_date = date_object.strftime("%m/%d")
+    return formatted_date
+    
+# Setup excel workbook
+workbook = Workbook()
+worksheet = workbook.active
+worksheet.title = "Shipping Date Changes"
+
+# Create a new instance of the Firefox driver
+driver = webdriver.Firefox()
+driver.get('https://www.hmm21.com/e-service/general/trackNTrace/TrackNTrace.do?&blNo=')
+
+# Get list of MSC tracking numbers
+list_tracking_numbers = open("list-trackers.txt", "r").readlines()
+
+# First search
+
+for entry in list_tracking_numbers:
+    # First search using different webpage
+    if entry == list_tracking_numbers[0]:
+        fill_input_initial(driver, entry)
+    else:
+        fill_input_sub(driver, entry)
+        
+    date = retrieve_date_info(driver)
+    try:
+        date = format_date(date)
+    except ValueError:
+        date = "No ETA Found"
+    entry = entry.strip()
+    row = [entry, date]
+    
+    # append row into worksheet
+    worksheet.append(row)
+    
+
+workbook.save("output/hmm_shipping_dates_changes.xlsx")
+
+driver.close()
