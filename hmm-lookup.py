@@ -35,12 +35,11 @@ def retrieve_date_info(driver):
         
         date_unformatted = date_element_last_td[-1].text
         date_formatted = date_unformatted.split(" ", 1)
-        print(date_formatted[0])
         
         return date_formatted[0]
     
     except Exception as e:
-        print(f"Could not find date on page. {e} \n")
+        print(f"Could not find date on page.")
         return 'N/A'
     
 def format_date(date):
