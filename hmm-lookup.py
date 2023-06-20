@@ -1,4 +1,4 @@
-from selenium import webdriver
+import undetected_chromedriver as uc
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -17,26 +17,30 @@ def fill_input_initial(driver, tracker):
     wait_for_content(driver, "//input[@name='srchBkgNo1']")
     input_box = driver.find_element(By.XPATH, "//input[@name='srchBkgNo1']")
     input_box.send_keys(tracker)
-    input_box.send_keys(Keys.ENTER)
     
     wait_for_content(driver, "//button[normalize-space()='Retrieve']")
     retrieve_button = driver.find_element(By.XPATH, "//button[normalize-space()='Retrieve']")
     retrieve_button.click()
 
 def fill_input_sub(driver, tracker):
-    wait_for_content(driver, "//input[@name='srchBkgNo1']")
+    wait_for_content(driver, "//input[@id='esvcGlobalQuery']")
     input_box = driver.find_element(By.XPATH, "//input[@id='esvcGlobalQuery']")
     input_box.send_keys(tracker)
-    input_box.send_keys(Keys.ENTER)
     
 def retrieve_date_info(driver):
     try:
-        wait_for_content(driver, "//div[@id='cntrChangeArea']//table//tbody/tr[3]/td[5]")
+        wait_for_content(driver, ".//div[@id='cntrChangeArea']//table//tbody/tr[3]")
+        date_element_row = driver.find_element(By.XPATH, ".//div[@id='cntrChangeArea']//table//tbody/tr[3]")
+        date_element_last_td = date_element_row.find_elements(By.XPATH, "./td")
         
-        date_element = driver.find_element(By.XPATH, "//div[@id='cntrChangeArea']//table//tbody/tr[3]/td[5]")
-        return date_element.text
+        date_unformatted = date_element_last_td[-1].text
+        date_formatted = date_unformatted.split(" ", 1)
+        print(date_formatted[0])
+        
+        return date_formatted[0]
+    
     except Exception as e:
-        print(f"Could not find date on page. Message {e}")
+        print(f"Could not find date on page. {e} \n")
         return 'N/A'
     
 def format_date(date):
@@ -53,28 +57,27 @@ worksheet = workbook.active
 worksheet.title = "Shipping Date Changes"
 
 # Create a new instance of the Firefox driver
-driver = webdriver.Firefox()
+driver = uc.Chrome(use_subprocess=True)
 driver.get('https://www.hmm21.com/e-service/general/trackNTrace/TrackNTrace.do?&blNo=')
 
 # Get list of MSC tracking numbers
 list_tracking_numbers = open("list-trackers.txt", "r").readlines()
 
-# First search
-
 for entry in list_tracking_numbers:
-    # First search using different webpage
     if entry == list_tracking_numbers[0]:
+        # First search using different webpage
         fill_input_initial(driver, entry)
     else:
+        # Subsequent searches uses top search bar
         fill_input_sub(driver, entry)
-        
+            
     date = retrieve_date_info(driver)
+    
     try:
         date = format_date(date)
     except ValueError:
         date = "No ETA Found"
-    entry = entry.strip()
-    row = [entry, date]
+    row = [entry.strip(), date]
     
     # append row into worksheet
     worksheet.append(row)
@@ -82,4 +85,4 @@ for entry in list_tracking_numbers:
 
 workbook.save("output/hmm_shipping_dates_changes.xlsx")
 
-driver.close()
+driver.quit()
